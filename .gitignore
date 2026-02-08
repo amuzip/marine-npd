@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+# Data (large files)
+data/raw/**/*.sdf
+data/raw/**/*.mol
+!data/raw/**/.gitkeep
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+# IDE
+.vscode/
+.idea/
+# Temp
+*.tmp
+*.temp
