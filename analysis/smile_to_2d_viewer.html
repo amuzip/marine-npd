@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Marine NPD — SMILES to 2D Structure Viewer</title>
+  <script src="https://unpkg.com/smiles-drawer@2.0.1/dist/smiles-drawer.min.js"></script>
+  <style>
+    /* ─── Reset & Base ──────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ocean-dark:  #0a2540;
+      --ocean-mid:   #0d3b6e;
+      --ocean-light: #1a5fa8;
+      --teal:        #00b4d8;
+      --teal-light:  #90e0ef;
+      --green:       #2ec4b6;
+      --surface:     #f0f6ff;
+      --card-bg:     #ffffff;
+      --border:      #cfe0f5;
+      --text:        #1a2e45;
+      --text-muted:  #5a7595;
+      --badge-ulva:       #2ec4b6;
+      --badge-sargassum:  #f4a261;
+      --badge-gelidium:   #e76f51;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--surface);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ─── Header ────────────────────────────────────────────────────── */
+    header {
+      background: linear-gradient(135deg, var(--ocean-dark) 0%, var(--ocean-mid) 60%, var(--ocean-light) 100%);
+      color: #fff;
+      padding: 28px 40px 22px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.35);
+    }
+
+    .header-icon {
+      font-size: 2.6rem;
+      line-height: 1;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,.4));
+    }
+
+    .header-text h1 {
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: .4px;
+    }
+
+    .header-text p {
+      font-size: .85rem;
+      color: var(--teal-light);
+      margin-top: 3px;
+    }
+
+    /* ─── Main layout ───────────────────────────────────────────────── */
+    main {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 32px 24px 60px;
+    }
+
+    section + section { margin-top: 36px; }
+
+    .section-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--ocean-mid);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 2px;
+      background: linear-gradient(90deg, var(--border), transparent);
+    }
+
+    /* ─── Input panel ───────────────────────────────────────────────── */
+    .input-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px 24px;
+      box-shadow: 0 2px 12px rgba(0,100,200,.07);
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .input-row input {
+      flex: 1 1 260px;
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: .93rem;
+      color: var(--text);
+      transition: border-color .2s;
+    }
+
+    .input-row input:focus {
+      outline: none;
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(0,180,216,.12);
+    }
+
+    .input-row input::placeholder { color: #a0b8d0; }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--ocean-light), var(--teal));
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(0,100,200,.25);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(0,100,200,.35);
+    }
+
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--ocean-mid);
+      border: 1.5px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--border);
+    }
+
+    .preset-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .chip {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: .78rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all .15s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .chip:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+    .chip-ulva      { background: #d0f5f1; color: #1a7a72; }
+    .chip-sargassum { background: #fde8d0; color: #9a4a10; }
+    .chip-gelidium  { background: #fdddd6; color: #9a2510; }
+    .chip-all       { background: #dce8ff; color: var(--ocean-mid); }
+
+    /* ─── Filter bar ────────────────────────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .filter-btn {
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all .15s;
+    }
+
+    .filter-btn.active { border-color: currentColor; background: #fff; }
+
+    .filter-all       { color: var(--ocean-mid);    background: #dce8ff; }
+    .filter-ulva      { color: #1a7a72;              background: #d0f5f1; }
+    .filter-sargassum { color: #9a4a10;              background: #fde8d0; }
+    .filter-gelidium  { color: #9a2510;              background: #fdddd6; }
+    .filter-custom    { color: #5a35a0;              background: #ece5ff; }
+
+    #result-count {
+      margin-left: auto;
+      font-size: .82rem;
+      color: var(--text-muted);
+    }
+
+    /* ─── Compound grid ─────────────────────────────────────────────── */
+    .compound-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 18px;
+    }
+
+    .compound-card {
+      background: var(--card-bg);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,60,150,.06);
+      transition: all .2s;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .compound-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 22px rgba(0,60,150,.14);
+      border-color: var(--teal);
+    }
+
+    .compound-card.hidden { display: none; }
+
+    .card-canvas-wrap {
+      padding: 12px;
+      background: #fafcff;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 180px;
+      position: relative;
+    }
+
+    .card-canvas-wrap canvas {
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    .error-msg {
+      color: #c0392b;
+      font-size: .78rem;
+      text-align: center;
+      padding: 8px;
+    }
+
+    .card-body {
+      padding: 12px 14px 14px;
+    }
+
+    .card-title {
+      font-size: .92rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 10px;
+      font-size: .72rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .badge-ulva      { background: #d0f5f1; color: #1a7a72; }
+    .badge-sargassum { background: #fde8d0; color: #9a4a10; }
+    .badge-gelidium  { background: #fdddd6; color: #9a2510; }
+    .badge-custom    { background: #ece5ff; color: #5a35a0; }
+
+    .card-smiles {
+      font-family: 'Courier New', monospace;
+      font-size: .68rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 6px;
+    }
+
+    .card-targets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .target-tag {
+      background: #e8f0fb;
+      color: var(--ocean-mid);
+      border-radius: 6px;
+      font-size: .68rem;
+      font-weight: 600;
+      padding: 2px 6px;
+    }
+
+    /* ─── Modal ─────────────────────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,20,60,.55);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: #fff;
+      border-radius: 18px;
+      width: min(680px, 96vw);
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,.4);
+      animation: slideUp .2s ease;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-header h2 { font-size: 1.15rem; color: var(--ocean-dark); }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.4rem;
+      cursor: pointer;
+      color: var(--text-muted);
+      line-height: 1;
+      padding: 4px;
+      border-radius: 6px;
+    }
+
+    .modal-close:hover { background: var(--surface); color: var(--text); }
+
+    .modal-canvas-wrap {
+      padding: 20px;
+      background: #fafcff;
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+    }
+
+    .modal-canvas-wrap canvas { max-width: 100%; }
+
+    .modal-body {
+      padding: 20px 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .modal-field {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .modal-field.full { grid-column: 1 / -1; }
+
+    .field-label {
+      font-size: .75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--text-muted);
+    }
+
+    .field-value {
+      font-size: .88rem;
+      color: var(--text);
+    }
+
+    .field-value.mono {
+      font-family: 'Courier New', monospace;
+      font-size: .8rem;
+      background: var(--surface);
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      word-break: break-all;
+    }
+
+    .modal-actions {
+      padding: 0 24px 22px;
+      display: flex;
+      gap: 10px;
+    }
+
+    /* ─── Empty state ───────────────────────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+      font-size: .95rem;
+    }
+
+    .empty-state span { font-size: 2.5rem; display: block; margin-bottom: 12px; }
+
+    /* ─── Footer ────────────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      font-size: .78rem;
+      color: var(--text-muted);
+      padding: 24px;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── Header ─────────────────────────────────────────────────────── -->
+<header>
+  <div class="header-icon">🧬</div>
+  <div class="header-text">
+    <h1>Marine NPD — SMILES to 2D Structure Viewer</h1>
+    <p>해양 천연물 화합물 구조 시각화 · Ulva · Sargassum · Gelidium</p>
+  </div>
+</header>
+
+<main>
+
+  <!-- ─── Custom Input ─────────────────────────────────────────────── -->
+  <section>
+    <div class="section-title">✏️ 직접 입력</div>
+    <div class="input-panel">
+      <div class="input-row">
+        <input id="inp-name"   type="text"  placeholder="화합물 이름 (예: Fucoxanthin)" />
+        <input id="inp-smiles" type="text"  placeholder="SMILES 문자열 (예: CC(=O)Oc1ccccc1)" />
+        <select id="inp-species" style="padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem;color:var(--text);background:#fff;cursor:pointer;">
+          <option value="custom">Custom</option>
+          <option value="ulva">Ulva</option>
+          <option value="sargassum">Sargassum</option>
+          <option value="gelidium">Gelidium</option>
+        </select>
+        <button class="btn btn-primary" onclick="addCustomCompound()">+ 추가</button>
+        <button class="btn btn-secondary" onclick="clearCustom()">Custom 초기화</button>
+      </div>
+      <div>
+        <span style="font-size:.8rem;color:var(--text-muted);font-weight:600;">빠른 예시:</span>
+        <div class="preset-chips">
+          <button class="chip chip-ulva"      onclick="fillPreset('Caffeic acid','OC(=O)/C=C/c1ccc(O)c(O)c1','ulva')">🌿 Caffeic acid</button>
+          <button class="chip chip-ulva"      onclick="fillPreset('Chlorophyll-a derivative','CN1C2=CC3=C(C=C3/C=C4/C(=C)C(CCC(=O)OCC=C(CCC/C(=C/CCC/C(=C/CCC=C(C)C)C)C)C)=[N+]4[Mg--]14)[C@@H](C(=O)OC)[C@@]2(C)CC(=O)OC','ulva')">🌿 Chlorophyll</button>
+          <button class="chip chip-sargassum" onclick="fillPreset('Squalene','CC(=CCC/C(=C/CCC(=CCC/C(=C/CCC=C(C)C)C)C)C)C','sargassum')">🟤 Squalene</button>
+          <button class="chip chip-sargassum" onclick="fillPreset('Fucosterol','[C@@H]1([C@H](CC[C@@H]2[C@@]1(CC[C@@H]1[C@H]2CC=C2C[C@@H](O)CC[C@]12C)C)/C=C/[C@@H](CC)CC)C','sargassum')">🟤 Fucosterol</button>
+          <button class="chip chip-gelidium"  onclick="fillPreset('Kaempferol','O=c1c(O)c(-c2ccc(O)cc2)oc2cc(O)cc(O)c12','gelidium')">🔴 Kaempferol</button>
+          <button class="chip chip-gelidium"  onclick="fillPreset('Agarose monomer','O[C@@H]1[C@H](OC[C@H]2O[C@@H](O)[C@H](O)[C@H](O)[C@H]2O)O[C@H](CO)[C@H]1O','gelidium')">🔴 Agarose</button>
+          <button class="chip chip-all"       onclick="loadAllPresets()">⚡ 전체 예시 로드</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Gallery ──────────────────────────────────────────────────── -->
+  <section>
+    <div class="section-title">🔬 화합물 구조 갤러리</div>
+
+    <div class="filter-bar">
+      <button class="filter-btn filter-all active"       data-filter="all"       onclick="setFilter('all',this)">전체</button>
+      <button class="filter-btn filter-ulva"             data-filter="ulva"      onclick="setFilter('ulva',this)">🌿 Ulva</button>
+      <button class="filter-btn filter-sargassum"        data-filter="sargassum" onclick="setFilter('sargassum',this)">🟤 Sargassum</button>
+      <button class="filter-btn filter-gelidium"         data-filter="gelidium"  onclick="setFilter('gelidium',this)">🔴 Gelidium</button>
+      <button class="filter-btn filter-custom"           data-filter="custom"    onclick="setFilter('custom',this)">✏️ Custom</button>
+      <span id="result-count"></span>
+    </div>
+
+    <div id="compound-grid" class="compound-grid"></div>
+    <div id="empty-state" class="empty-state" style="display:none">
+      <span>🔍</span>해당 조건의 화합물이 없습니다.
+    </div>
+  </section>
+
+</main>
+
+<!-- ─── Detail Modal ─────────────────────────────────────────────────── -->
+<div id="modal-overlay" class="modal-overlay" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title"></h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-canvas-wrap">
+      <canvas id="modal-canvas" width="480" height="300"></canvas>
+    </div>
+    <div class="modal-body">
+      <div class="modal-field">
+        <span class="field-label">Species</span>
+        <span class="field-value" id="modal-species"></span>
+      </div>
+      <div class="modal-field">
+        <span class="field-label">Targets</span>
+        <span class="field-value" id="modal-targets"></span>
+      </div>
+      <div class="modal-field full">
+        <span class="field-label">SMILES</span>
+        <div class="field-value mono" id="modal-smiles"></div>
+      </div>
+      <div class="modal-field full">
+        <span class="field-label">Description</span>
+        <span class="field-value" id="modal-desc"></span>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="downloadCanvas()">⬇ PNG 저장</button>
+      <button class="btn btn-secondary" onclick="copySmiles()">📋 SMILES 복사</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Marine Natural Product Discovery Pipeline · 해양 천연물 신약 탐색 · Rendering: SmilesDrawer 2.0
+</footer>
+
+<script>
+/* ─── Compound Database ──────────────────────────────────────────────── */
+const DB = [
+  // Ulva (Sea Lettuce) — Green Algae
+  {
+    id: 'u1',
+    name: 'Caffeic Acid',
+    species: 'ulva',
+    smiles: 'OC(=O)/C=C/c1ccc(O)c(O)c1',
+    targets: ['FASN', 'PPARG'],
+    desc: '울바에서 분리된 페놀산. FASN 억제 및 항산화 활성을 통해 지질 대사를 조절한다.'
+  },
+  {
+    id: 'u2',
+    name: 'Quercetin',
+    species: 'ulva',
+    smiles: 'O=c1c(O)c(-c2ccc(O)c(O)c2)oc2cc(O)cc(O)c12',
+    targets: ['PPARG', 'AKT1', 'mTOR'],
+    desc: 'PPARG 활성화 및 AKT1 경로 조절을 통해 근육 단백질 합성에 관여하는 플라보노이드.'
+  },
+  {
+    id: 'u3',
+    name: 'Rutin',
+    species: 'ulva',
+    smiles: 'O=c1c(OC2OC(CO[C@@H]3O[C@@H](C)[C@H](O)[C@@H](O)[C@H]3O)[C@@H](O)[C@H](O)[C@H]2O)c(-c2ccc(O)c(O)c2)oc2cc(O)cc(O)c12',
+    targets: ['AMPK', 'mTOR'],
+    desc: 'AMPK 활성화를 통해 에너지 항상성을 유지하고 근감소증 예방에 기여한다.'
+  },
+  {
+    id: 'u4',
+    name: 'Ulvic Acid (Glucuronic Acid)',
+    species: 'ulva',
+    smiles: 'OC(=O)[C@H]1O[C@@H](O)[C@H](O)[C@@H](O)[C@@H]1O',
+    targets: ['AMPK'],
+    desc: '울반(Ulvan) 다당류의 단량체 성분. 대사 조절 활성을 보인다.'
+  },
+  {
+    id: 'u5',
+    name: 'L-Rhamnose',
+    species: 'ulva',
+    smiles: 'C[C@@H]1OC(O)[C@@H](O)[C@H](O)[C@@H]1O',
+    targets: ['AMPK'],
+    desc: '울반의 주요 당 구성 성분. 항염증 및 AMPK 조절 효과가 보고됨.'
+  },
+  // Sargassum (Brown Algae)
+  {
+    id: 's1',
+    name: 'Fucoxanthin',
+    species: 'sargassum',
+    smiles: 'CC(=O)O[C@@H]1CC(=C)[C@@]2(C)CCC[C@@]2(C)/C=C/C(=C\\C=C\\C(C)=C\\C=C\\[C@H]3O[C@]4(C)CCCC(C)(C)[C@@H]4/C3=C\\C(=O)C1)/C',
+    targets: ['AMPK', 'PPARG', 'FASN'],
+    desc: '갈조류 특유의 카로티노이드. AMPK 활성화 및 FASN 억제를 통해 강력한 항비만·항근감소증 효과를 나타낸다.'
+  },
+  {
+    id: 's2',
+    name: 'Squalene',
+    species: 'sargassum',
+    smiles: 'CC(=CCC/C(=C/CCC(=CCC/C(=C/CCC=C(C)C)C)C)C)C',
+    targets: ['FASN', 'mTOR'],
+    desc: '삼중 테르펜계 불포화 탄화수소. FASN 억제 및 세포막 보호 효과를 통해 대사 질환을 조절한다.'
+  },
+  {
+    id: 's3',
+    name: 'Fucosterol',
+    species: 'sargassum',
+    smiles: '[C@@H]1([C@H](CC[C@@H]2[C@@]1(CC[C@@H]1[C@H]2CC=C2C[C@@H](O)CC[C@]12C)C)/C=C/CC)C',
+    targets: ['AKT1', 'PPARG'],
+    desc: '갈조류의 주요 스테롤. AKT1 경로를 통한 근육 단백질 합성 촉진 및 당뇨 개선 효과.'
+  },
+  {
+    id: 's4',
+    name: 'EPA (Eicosapentaenoic Acid)',
+    species: 'sargassum',
+    smiles: 'CCCCC/C=C\\C/C=C\\C/C=C\\C/C=C\\C/C=C\\CCCC(=O)O',
+    targets: ['AMPK', 'mTOR', 'PPARG'],
+    desc: '오메가-3 지방산. AMPK 활성화 및 mTOR 경로 조절을 통해 근감소증 치료에 핵심적 역할.'
+  },
+  {
+    id: 's5',
+    name: 'Myricetin',
+    species: 'sargassum',
+    smiles: 'O=c1c(O)c(-c2cc(O)c(O)c(O)c2)oc2cc(O)cc(O)c12',
+    targets: ['FASN', 'AKT1'],
+    desc: 'FASN 직접 억제 활성을 갖는 폴리페놀. 지방산 합성 차단을 통해 비만·근감소증 개선.'
+  },
+  {
+    id: 's6',
+    name: 'Eckol',
+    species: 'sargassum',
+    smiles: 'Oc1cc(O)c2c(c1)Oc1c(O)c(O)cc(c1)Oc1cc(O)c(O)cc1-2',
+    targets: ['AKT1', 'mTOR'],
+    desc: '갈조류 플로로탄닌 계열. AKT1/mTOR 신호전달 억제를 통해 세포 보호 및 근육 재생 촉진.'
+  },
+  // Gelidium (Red Algae)
+  {
+    id: 'g1',
+    name: 'Kaempferol',
+    species: 'gelidium',
+    smiles: 'O=c1c(O)c(-c2ccc(O)cc2)oc2cc(O)cc(O)c12',
+    targets: ['mTOR', 'AKT1'],
+    desc: '홍조류 플라보노이드. mTOR 억제를 통한 자가포식 유도 및 근육 단백질 항상성 유지.'
+  },
+  {
+    id: 'g2',
+    name: 'Agarose Monomer',
+    species: 'gelidium',
+    smiles: 'O[C@@H]1[C@H](OC[C@H]2O[C@@H](O)[C@H](O)[C@H](O)[C@H]2O)O[C@H](CO)[C@H]1O',
+    targets: ['AMPK'],
+    desc: '우뭇가사리 한천의 반복 이당류 단위. 프리바이오틱 효과를 통한 AMPK 간접 활성화.'
+  },
+  {
+    id: 'g3',
+    name: 'Carrageenan Monomer (κ)',
+    species: 'gelidium',
+    smiles: 'OC[C@H]1O[C@@H](O)[C@H](O)[C@@H](O)[C@@H]1OS(=O)(=O)O',
+    targets: ['AMPK', 'PPARG'],
+    desc: 'κ-카라기난 구성 단위. 항염증 효과 및 지질 대사 조절 활성.'
+  },
+  {
+    id: 'g4',
+    name: 'DHA (Docosahexaenoic Acid)',
+    species: 'gelidium',
+    smiles: 'CC/C=C\\C/C=C\\C/C=C\\C/C=C\\C/C=C\\C/C=C\\CCC(=O)O',
+    targets: ['AMPK', 'mTOR', 'PPARG'],
+    desc: '오메가-3 DHA. PPARG 활성화 및 근육 세포 내 단백질 분해 억제로 근감소증 개선 기여.'
+  },
+  {
+    id: 'g5',
+    name: 'R-Phycoerythrobilin',
+    species: 'gelidium',
+    smiles: 'CC1=C(CC2=C(CC3=C(C=C4NC(=O)C(=C4CC)CC)C(=C)N3)NC2=O)N=C1',
+    targets: ['FASN'],
+    desc: '홍조류 피코빌린 색소. 항산화 및 FASN 조절을 통한 지질 대사 개선 효과.'
+  }
+];
+
+/* ─── State ──────────────────────────────────────────────────────────── */
+let compounds = [...DB];
+let activeFilter = 'all';
+let modalCompound = null;
+let modalSd = null;
+
+/* ─── SmilesDrawer options ───────────────────────────────────────────── */
+const SD_OPTS_CARD   = { width: 200, height: 155, bondThickness: 1.0, fontSizeLarge: 6, fontSizeSmall: 4.5, compactDrawing: false };
+const SD_OPTS_MODAL  = { width: 460, height: 290, bondThickness: 1.2, fontSizeLarge: 8, fontSizeSmall: 6,   compactDrawing: false };
+
+const sdCard  = new SmilesDrawer.Drawer(SD_OPTS_CARD);
+const sdModal = new SmilesDrawer.Drawer(SD_OPTS_MODAL);
+
+/* ─── Render helpers ─────────────────────────────────────────────────── */
+function renderToCanvas(smiles, drawer, canvas, callback) {
+  SmilesDrawer.parse(smiles, (tree) => {
+    drawer.draw(tree, canvas, 'light', false);
+    if (callback) callback(true);
+  }, (err) => {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#c0392b';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚠ Invalid SMILES', canvas.width / 2, canvas.height / 2);
+    if (callback) callback(false);
+  });
+}
+
+/* ─── Build card DOM ─────────────────────────────────────────────────── */
+function buildCard(compound) {
+  const card = document.createElement('div');
+  card.className = 'compound-card';
+  card.dataset.species = compound.species;
+  card.dataset.id = compound.id;
+
+  const canvasId = `cv-${compound.id}`;
+  const targets = (compound.targets || []).map(t => `<span class="target-tag">${t}</span>`).join('');
+
+  card.innerHTML = `
+    <div class="card-canvas-wrap">
+      <canvas id="${canvasId}" width="200" height="155"></canvas>
+    </div>
+    <div class="card-body">
+      <div class="card-title" title="${compound.name}">${compound.name}</div>
+      <span class="badge badge-${compound.species}">${speciesLabel(compound.species)}</span>
+      <div class="card-smiles" title="${compound.smiles}">${compound.smiles}</div>
+      <div class="card-targets">${targets}</div>
+    </div>
+  `;
+
+  card.addEventListener('click', () => openModal(compound));
+  return card;
+}
+
+function speciesLabel(s) {
+  return { ulva: '🌿 Ulva', sargassum: '🟤 Sargassum', gelidium: '🔴 Gelidium', custom: '✏️ Custom' }[s] || s;
+}
+
+/* ─── Render all cards ───────────────────────────────────────────────── */
+function renderGrid() {
+  const grid = document.getElementById('compound-grid');
+  grid.innerHTML = '';
+
+  const filtered = activeFilter === 'all'
+    ? compounds
+    : compounds.filter(c => c.species === activeFilter);
+
+  document.getElementById('result-count').textContent = `${filtered.length}개 화합물`;
+
+  if (filtered.length === 0) {
+    document.getElementById('empty-state').style.display = '';
+    return;
+  }
+  document.getElementById('empty-state').style.display = 'none';
+
+  filtered.forEach(compound => {
+    const card = buildCard(compound);
+    grid.appendChild(card);
+    // defer render so DOM is visible
+    requestAnimationFrame(() => {
+      const canvas = document.getElementById(`cv-${compound.id}`);
+      if (canvas) renderToCanvas(compound.smiles, sdCard, canvas);
+    });
+  });
+}
+
+/* ─── Filter ─────────────────────────────────────────────────────────── */
+function setFilter(filter, btn) {
+  activeFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGrid();
+}
+
+/* ─── Modal ──────────────────────────────────────────────────────────── */
+function openModal(compound) {
+  modalCompound = compound;
+  document.getElementById('modal-title').textContent    = compound.name;
+  document.getElementById('modal-species').textContent  = speciesLabel(compound.species);
+  document.getElementById('modal-smiles').textContent   = compound.smiles;
+  document.getElementById('modal-targets').textContent  = (compound.targets || []).join(', ') || '—';
+  document.getElementById('modal-desc').textContent     = compound.desc || '—';
+
+  const canvas = document.getElementById('modal-canvas');
+  canvas.width  = 460;
+  canvas.height = 290;
+  renderToCanvas(compound.smiles, sdModal, canvas);
+
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  modalCompound = null;
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+/* ─── Download PNG ───────────────────────────────────────────────────── */
+function downloadCanvas() {
+  const canvas = document.getElementById('modal-canvas');
+  const link = document.createElement('a');
+  link.download = `${(modalCompound?.name || 'compound').replace(/\s+/g,'_')}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+/* ─── Copy SMILES ────────────────────────────────────────────────────── */
+function copySmiles() {
+  if (!modalCompound) return;
+  navigator.clipboard.writeText(modalCompound.smiles).then(() => {
+    const btn = document.querySelector('.modal-actions .btn-secondary');
+    const orig = btn.textContent;
+    btn.textContent = '✅ 복사 완료!';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  });
+}
+
+/* ─── Custom input ───────────────────────────────────────────────────── */
+function addCustomCompound() {
+  const name   = document.getElementById('inp-name').value.trim();
+  const smiles = document.getElementById('inp-smiles').value.trim();
+  const species = document.getElementById('inp-species').value;
+
+  if (!smiles) { alert('SMILES를 입력해주세요.'); return; }
+
+  const id = 'custom-' + Date.now();
+  const compound = {
+    id,
+    name: name || 'Custom Compound',
+    species,
+    smiles,
+    targets: [],
+    desc: '사용자 입력 화합물.'
+  };
+
+  compounds.push(compound);
+  document.getElementById('inp-name').value   = '';
+  document.getElementById('inp-smiles').value = '';
+
+  // Switch to show the right filter or all
+  if (activeFilter !== 'all' && activeFilter !== species) {
+    setFilter(species, document.querySelector(`[data-filter="${species}"]`) || document.querySelector('[data-filter="all"]'));
+  } else {
+    renderGrid();
+  }
+}
+
+function clearCustom() {
+  compounds = compounds.filter(c => !c.id.startsWith('custom-'));
+  renderGrid();
+}
+
+/* ─── Preset fill ────────────────────────────────────────────────────── */
+function fillPreset(name, smiles, species) {
+  document.getElementById('inp-name').value   = name;
+  document.getElementById('inp-smiles').value = smiles;
+  document.getElementById('inp-species').value = species;
+}
+
+/* ─── Load all presets as custom ─────────────────────────────────────── */
+function loadAllPresets() {
+  const extras = [
+    { name: 'Apigenin',     smiles: 'O=c1cc(-c2ccc(O)cc2)oc2cc(O)cc(O)c12', species: 'ulva',      targets: ['FASN','mTOR'],   desc: '항염·항지방 플라보노이드' },
+    { name: 'Beta-Carotene',smiles: 'CC1=C(/C=C/C(=C/C=C/C(=C/C=C/C=C(C)/C=C/C=C(C)/C=C/C2=C(C)CCCC2(C)C)C)C)CCCC1(C)C', species: 'sargassum', targets: ['PPARG'], desc: '갈조류 카로티노이드. 항산화 활성.' },
+    { name: 'Iodine-rich polyphenol', smiles: 'Oc1cc(O)c2c(c1)Oc1cc(O)c(O)cc1-2', species: 'gelidium', targets: ['AKT1'], desc: '홍조류 폴리페놀 유도체.' },
+  ];
+  extras.forEach(e => {
+    const id = 'custom-' + Date.now() + Math.random();
+    compounds.push({ id, ...e });
+  });
+  renderGrid();
+}
+
+/* ─── Init ───────────────────────────────────────────────────────────── */
+renderGrid();
+</script>
+</body>
+</html>
